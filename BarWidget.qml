@@ -3,7 +3,6 @@ import Quickshell
 import Quickshell.Io
 import qs.Ui
 import qs.Commons
-import "Effects.js" as Effects
 
 BarWidget {
   id: root
@@ -12,10 +11,57 @@ BarWidget {
   property string currentEffect: "off"
   property bool popupOpen: false
 
-  readonly property var catalog: Effects.catalog
+  readonly property var catalog: [
+    { id: "fireworks", label: "Fireworks", icon: "󰂪" },
+    { id: "stars", label: "Stars", icon: "󰙴" },
+    { id: "flowers", label: "Flowers", icon: "󰧱" },
+    { id: "embers", label: "Embers", icon: "󰈸" },
+    { id: "meteors", label: "Meteors", icon: "󰖒" },
+    { id: "fireflies", label: "Fireflies", icon: "󰌵" },
+    { id: "confetti", label: "Confetti", icon: "󰝶" },
+    { id: "snow", label: "Snow", icon: "󰼶" },
+    { id: "rain", label: "Rain", icon: "󰖗" },
+    { id: "aurora", label: "Aurora", icon: "󰔏" },
+    { id: "bokeh", label: "Bokeh", icon: "󰽢" },
+    { id: "heat", label: "Heat", icon: "󰜬" },
+    { id: "off", label: "Off", icon: "󰂲" }
+  ]
+
   readonly property bool effectOn: currentEffect !== "off"
-  readonly property string currentIcon: effectOn ? Effects.iconFor(currentEffect) : "󰐾"
-  readonly property string currentLabel: Effects.labelFor(currentEffect)
+  readonly property string currentIcon: effectOn ? iconFor(currentEffect) : "󰐾"
+  readonly property string currentLabel: labelFor(currentEffect)
+
+  function canonical(name) {
+    var value = String(name || "").replace(/\s+/g, "")
+    if (value === "sparkle") return "stars"
+    if (value === "flower") return "flowers"
+    if (value === "none") return "off"
+    return value || "off"
+  }
+
+  function parseCurrent(text) {
+    var value = canonical(text)
+    for (var i = 0; i < catalog.length; i++) {
+      if (catalog[i].id === value) return value
+    }
+    return "off"
+  }
+
+  function entryFor(id) {
+    var value = parseCurrent(id)
+    for (var i = 0; i < catalog.length; i++) {
+      if (catalog[i].id === value) return catalog[i]
+    }
+    return catalog[catalog.length - 1]
+  }
+
+  function iconFor(id) {
+    return entryFor(id).icon
+  }
+
+  function labelFor(id) {
+    return entryFor(id).label
+  }
 
   function pluginFile(name) {
     return String(Qt.resolvedUrl(name)).replace(/^file:\/\//, "")
@@ -38,7 +84,7 @@ BarWidget {
   }
 
   function choose(id) {
-    var next = Effects.parseCurrent(id)
+    var next = parseCurrent(id)
     if (next === currentEffect && next !== "off") next = "off"
     currentEffect = next
     runEffect(next)
@@ -60,7 +106,7 @@ BarWidget {
     watchChanges: true
     printErrors: false
     onFileChanged: reload()
-    onLoaded: root.currentEffect = Effects.parseCurrent(text())
+    onLoaded: root.currentEffect = root.parseCurrent(text())
     onLoadFailed: root.currentEffect = "off"
   }
 
