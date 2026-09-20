@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "id": "scott.screen-effects",
+  "name": "Screen effects",
+  "version": "1.0.0",
+  "author": "Scott",
+  "description": "Hyprland screen overlay effects (snow, fireworks, aurora, and friends)",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "Screen effects",
+    "description": "Pick a Hyprland screen overlay shader",
+    "category": "Compositor",
+    "allowMultiple": false,
+    "defaultSection": "right"
+  }
+}

@@ -1,0 +1,146 @@
+#!/bin/bash
+set -euo pipefail
+
+PLUGIN_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+PACK_PARTS="${PLUGIN_DIR}/parts"
+USER_DIR="${HOME}/.config/hypr/shaders"
+USER_PARTS="${USER_DIR}/parts"
+STATE="${USER_DIR}/current"
+STACK="${USER_DIR}/stack.frag"
+
+ORDER=(heat aurora bokeh rain snow embers meteors fireflies stars fireworks confetti flowers)
+
+canonical() {
+  case "$1" in
+    sparkle) echo stars ;;
+    flower) echo flowers ;;
+    none) echo off ;;
+    *) echo "$1" ;;
+  esac
+}
+
+known() {
+  local name="$1"
+  local item
+  for item in "${ORDER[@]}"; do
+    if [[ $item == "$name" ]]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+part_file() {
+  local name="$1"
+  if [[ -f $USER_PARTS/${name}.glsl ]]; then
+    echo "$USER_PARTS/${name}.glsl"
+  else
+    echo "$PACK_PARTS/${name}.glsl"
+  fi
+}
+
+current() {
+  if [[ -f $STATE ]]; then
+    local value
+    value="$(tr -d '[:space:]' < "$STATE")"
+    value="$(canonical "$value")"
+    if known "$value"; then
+      echo "$value"
+      return 0
+    fi
+  fi
+  echo off
+}
+
+rebuild() {
+  local effect
+  effect="$(current)"
+  if [[ $effect == off ]]; then
+    rm -f "$STACK"
+    return 0
+  fi
+
+  mkdir -p "$USER_DIR"
+  {
+    cat "$(part_file header)"
+    echo
+    cat "$(part_file "$effect")"
+    echo
+    echo "void main() {"
+    echo "  vec4 pix = texture(tex, v_texcoord);"
+    echo "  pix = effect_${effect}(pix);"
+    echo "  fragColor = pix;"
+    echo "}"
+  } > "$STACK"
+}
+
+apply_shader() {
+  rebuild
+  local shader=""
+  local tracking=2
+  local vfr=true
+  if [[ -f $STACK ]]; then
+    shader="$STACK"
+    tracking=0
+    vfr=false
+  fi
+  hyprctl eval "hl.config({ decoration = { screen_shader = [[${shader}]] }, debug = { damage_tracking = ${tracking}, vfr = ${vfr} } })" >/dev/null
+}
+
+randomize_flowers() {
+  mkdir -p "$USER_PARTS"
+  if [[ ! -f $USER_PARTS/flowers.glsl ]]; then
+    cp "$PACK_PARTS/flowers.glsl" "$USER_PARTS/flowers.glsl"
+  fi
+  local seed
+  seed="$(awk 'BEGIN { srand(); printf "%.3f\n", rand() * 99991.0 }')"
+  sed -i "s/^const float LAYOUT_SEED = .*/const float LAYOUT_SEED = ${seed};/" "$USER_PARTS/flowers.glsl"
+}
+
+set_effect() {
+  local effect
+  effect="$(canonical "$1")"
+  if ! known "$effect"; then
+    usage
+  fi
+
+  mkdir -p "$USER_DIR"
+  if [[ $(current) == "$effect" ]]; then
+    printf '%s\n' off > "$STATE"
+  else
+    printf '%s\n' "$effect" > "$STATE"
+    if [[ $effect == flowers ]]; then
+      randomize_flowers
+    fi
+  fi
+  apply_shader
+}
+
+usage() {
+  echo "usage: hypr-screen-effect {heat|aurora|bokeh|rain|snow|embers|meteors|fireflies|stars|fireworks|confetti|flowers|off|current|apply|enabled <name>}" >&2
+  return 1
+}
+
+case "${1:-}" in
+  current)
+    current
+    ;;
+  apply)
+    apply_shader
+    ;;
+  enabled)
+    [[ -n ${2:-} ]] || usage
+    [[ $(current) == "$(canonical "$2")" ]]
+    ;;
+  off | none)
+    mkdir -p "$USER_DIR"
+    printf '%s\n' off > "$STATE"
+    apply_shader
+    ;;
+  "")
+    usage
+    ;;
+  *)
+    set_effect "$1"
+    ;;
+esac
